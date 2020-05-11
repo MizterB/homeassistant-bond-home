@@ -1,4 +1,6 @@
 """Bond Home Light Integration"""
+from homeassistant.const import ATTR_ENTITY_ID
+
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     PLATFORM_SCHEMA,
@@ -14,6 +16,9 @@ from bond import (
     BOND_DEVICE_ACTION_TURN_ON,
     BOND_DEVICE_ACTION_TURN_OFF,
     BOND_DEVICE_ACTION_TOGGLE_LIGHT,
+    BOND_DEVICE_ACTION_START_DIMMER,
+    BOND_DEVICE_ACTION_START_UP_LIGHT_DIMMER,
+    BOND_DEVICE_ACTION_START_DOWN_LIGHT_DIMMER,
     BOND_DEVICE_ACTION_TOGGLE_POWER,
     BOND_DEVICE_ACTION_SET_FLAME,
     BOND_DEVICE_ACTION_INCREASE_FLAME,
@@ -23,6 +28,11 @@ from bond import (
 import logging
 DOMAIN = 'bond'
 
+SERVICE_STOP = "stop"
+SERVICE_START_DIMMER = "start_dimmer"
+SERVICE_START_UP_LIGHT_DIMMER = "start_up_light_dimmer"
+SERVICE_START_DOWN_LIGHT_DIMMER = "start_down_light_dimmer"
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -30,6 +40,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the Bond Light platform."""
     # Setup connection with devices/cloud
     bond = hass.data[DOMAIN]['bond_hub']
+
+    lights = []
+    fireplaces = []
 
     # Add devices
     for deviceId in bond.getDeviceIds():
@@ -48,7 +61,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
             if supportsLightActions:
                 deviceProperties = bond.getProperties(deviceId)
                 light = BondLight(bond, deviceId, device, deviceProperties)
-                add_entities([light])
+                lights.append(light)
 
         elif deviceType == BOND_DEVICE_TYPE_FIREPLACE:
             supportsFlameActions = \
@@ -68,9 +81,47 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
                                           device,
                                           deviceProperties,
                                           supportsFlameActions)
-                add_entities([fireplace])
+                fireplaces.append(fireplace)
+    
+    add_entities(lights)
+    add_entities(fireplaces)
 
+    def service_stop(service):
+        entity_id = service.data.get(ATTR_ENTITY_ID, [])
+        target_lights = [light for light in lights if light.entity_id in entity_id]
+        for light in target_lights:
+            light.stop()
 
+    def service_start_dimmer(service):
+        entity_id = service.data.get(ATTR_ENTITY_ID, [])
+        target_lights = [light for light in lights if light.entity_id in entity_id]
+        for light in target_lights:
+            light.start_dimmer()
+
+    def service_start_up_light_dimmer(service):
+        entity_id = service.data.get(ATTR_ENTITY_ID, [])
+        target_lights = [light for light in lights if light.entity_id in entity_id]
+        for light in target_lights:
+            light.start_up_light_dimmer()
+
+    def service_start_down_light_dimmer(service):
+        entity_id = service.data.get(ATTR_ENTITY_ID, [])
+        target_lights = [light for light in lights if light.entity_id in entity_id]
+        for light in target_lights:
+            light.start_down_light_dimmer()
+
+    hass.services.register(DOMAIN, SERVICE_STOP, service_stop)
+    hass.services.register(DOMAIN, SERVICE_START_DIMMER, service_start_dimmer)
+    hass.services.register(
+        DOMAIN, SERVICE_START_UP_LIGHT_DIMMER, service_start_up_light_dimmer
+    )
+    hass.services.register(
+        DOMAIN, SERVICE_START_DOWN_LIGHT_DIMMER, service_start_down_light_dimmer
+    )
+
+    return True
+
+    
 class BondLight(Light):
     """Representation of an Bond Light."""
 
@@ -118,6 +169,28 @@ class BondLight(Light):
     def device_id(self):
         """Return the ID of this light."""
         return self.unique_id
+
+    def stop(self):
+        """This action tells the Bond to stop any in-progress transmission
+        and empty its transmission queue.
+        """
+        self._bond.stop(self._deviceId)
+
+    def start_dimmer(self):
+        """Start dimming. The Bond should time out its transmission after 30 seconds,
+         or when the Stop action is called.
+         """
+        self._bond.startDimmer(self._deviceId)
+
+    def start_up_light_dimmer(self):
+        """Use this and the StartDownLightDimmer instead of StartDimmer
+        if your device has two dimmable lights.
+        """
+        self._bond.startUpLightDimmer(self._deviceId)
+
+    def start_down_light_dimmer(self):
+        """The counterpart to StartUpLightDimmer"""
+        self._bond.startDownLightDimmer(self._deviceId)
 
 
 class BondFireplace(Light):

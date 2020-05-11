@@ -1,0 +1,24 @@
+stop:
+    description: This action tells the Bond to stop any in-progress transmission and empty its transmission queue.
+    fields:
+        entity_id:
+            description: Name(s) of the entities to stop
+            example: "light.living_room"
+start_dimmer:
+    description: Start dimming. The Bond should time out its transmission after 30 seconds, or when the Stop action is called.
+    fields:
+        entity_id:
+            description: Name(s) of the entities to start dimming
+            example: "light.living_room"
+start_up_light_dimmer:
+    description: Use this and the StartDownLightDimmer instead of StartDimmer if your device has two dimmable lights.
+    fields:
+        entity_id:
+            description: Name(s) of the entities to start dimming
+            example: "light.living_room"
+start_down_light_dimmer:
+    description: The counterpart to StartUpLightDimmer.
+    fields:
+        entity_id:
+            description: Name(s) of the entities to start dimming
+            example: "light.living_room"
